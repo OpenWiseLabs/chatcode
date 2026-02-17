@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Local sessions
+.codex_session_id
+*.session_id
+
+# Local runtime/config secrets
+configs/config.yaml
+
+# Databases and runtime state
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Build outputs and binaries
+chat
+chatbridge
+/chatcode
+*.exe
+*.out
+*.test
+
+# Go build cache artifacts
+/bin/
+/dist/
+/coverage.out
+
+AGENTS.md
+
+./chatcode
