@@ -28,10 +28,16 @@ func (e CodexExecutor) BuildCommand(_ context.Context, job domain.Job) ([]string
 	if e.Binary == "" {
 		return nil, fmt.Errorf("codex binary is empty")
 	}
+	sandboxMode := "workspace-write"
+	if domain.NormalizePermissionMode(job.PermissionMode) == domain.PermissionModeFullAccess {
+		sandboxMode = "danger-full-access"
+	}
 	if job.Session != "" {
 		return []string{
 			e.Binary,
 			"--full-auto",
+			"--sandbox",
+			sandboxMode,
 			"exec",
 			"--json",
 			"--skip-git-repo-check",
@@ -43,6 +49,8 @@ func (e CodexExecutor) BuildCommand(_ context.Context, job domain.Job) ([]string
 	return []string{
 		e.Binary,
 		"--full-auto",
+		"--sandbox",
+		sandboxMode,
 		"exec",
 		"--json",
 		"--skip-git-repo-check",
@@ -72,9 +80,10 @@ func (e CodexExecutor) SaveSession(ctx context.Context, job domain.Job, sessionI
 }
 
 func (e CodexExecutor) HandleEvent(ev *domain.StreamEvent) string {
-	sessionID, text, ok := parseCodexJSONEvent(ev.Chunk)
+	sessionID, text, format, ok := parseCodexJSONEvent(ev.Chunk)
 	if ok {
 		ev.Chunk = text
+		ev.Format = format
 	} else {
 		ev.Chunk = ""
 		return ""
@@ -85,21 +94,21 @@ func (e CodexExecutor) HandleEvent(ev *domain.StreamEvent) string {
 	return extractSessionIDByRegex(ev.Chunk, codexThreadIDRegex, 1)
 }
 
-func parseCodexJSONEvent(chunk string) (sessionID, text string, ok bool) {
+func parseCodexJSONEvent(chunk string) (sessionID, text, format string, ok bool) {
 	line := strings.TrimSpace(chunk)
 	if !strings.HasPrefix(line, "{") {
-		return "", "", false
+		return "", "", "", false
 	}
 	var ev codexJSONEvent
 	if err := json.Unmarshal([]byte(line), &ev); err != nil {
-		return "", "", false
+		return "", "", "", false
 	}
 	sessionID = extractCodexSessionID(ev)
-	text = extractCodexEventText(ev)
+	text, format = extractCodexEventText(ev)
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
-	return sessionID, text, true
+	return sessionID, text, format, true
 }
 
 func extractCodexSessionID(ev codexJSONEvent) string {
@@ -114,30 +123,30 @@ func extractCodexSessionID(ev codexJSONEvent) string {
 	return ""
 }
 
-func extractCodexEventText(ev codexJSONEvent) string {
+func extractCodexEventText(ev codexJSONEvent) (string, string) {
 	switch ev.Type {
 	case "error":
-		return ev.Message
+		return ev.Message, ""
 	case "turn.failed":
 		if ev.Error != nil && ev.Error.Message != "" {
-			return ev.Error.Message
+			return ev.Error.Message, ""
 		}
-		return ev.Message
+		return ev.Message, ""
 	case "item.completed":
 		if ev.Item == nil {
-			return ""
+			return "", ""
 		}
 		switch ev.Item.Type {
 		case "agent_message", "reasoning":
-			return ev.Item.Text
+			return ev.Item.Text, ""
 		case "command_execution":
-			return formatCommandExecutionHTML(ev.Item.Command, ev.Item.AggregatedOutput)
+			return formatCommandExecutionHTML(ev.Item.Command, ev.Item.AggregatedOutput), "html"
 		}
 	}
 	if ev.Message != "" {
-		return ev.Message
+		return ev.Message, ""
 	}
-	return ""
+	return "", ""
 }
 
 type codexJSONEvent struct {

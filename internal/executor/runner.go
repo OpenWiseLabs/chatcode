@@ -13,6 +13,21 @@ import (
 	"chatcode/internal/domain"
 )
 
+func isNonFatalWaitErr(ex Executor, waitErr error) bool {
+	if waitErr == nil {
+		return true
+	}
+	checker, ok := ex.(ExitCodeAware)
+	if !ok {
+		return false
+	}
+	exitErr, ok := waitErr.(*exec.ExitError)
+	if !ok {
+		return false
+	}
+	return checker.IsSuccessExitCode(exitErr.ExitCode())
+}
+
 type Runner struct {
 	Timeout time.Duration
 }
@@ -70,6 +85,9 @@ func (r Runner) RunJob(ctx context.Context, ex Executor, job domain.Job, sink Si
 
 	waitErr := cmd.Wait()
 	wg.Wait()
+	if isNonFatalWaitErr(ex, waitErr) {
+		waitErr = nil
+	}
 	next := atomic.AddInt64(&seq, 1)
 	exitCode := 0
 	if waitErr != nil {

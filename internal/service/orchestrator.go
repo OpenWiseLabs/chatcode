@@ -135,6 +135,10 @@ func (o *Orchestrator) handleCommand(ctx context.Context, msg domain.Message, te
 		if err != nil {
 			return err
 		}
+		mode, err := o.sessions.PermissionMode(ctx, msg.SessionKey)
+		if err != nil {
+			return err
+		}
 		exName := o.defaultExecutor(msg.SessionKey)
 		if wd == "" {
 			wd = "(unset)"
@@ -157,9 +161,26 @@ func (o *Orchestrator) handleCommand(ctx context.Context, msg domain.Message, te
 			}
 		}
 		return o.reply(ctx, msg.SessionKey, fmt.Sprintf(
-			"Status:\nWorkdir: %s\nExecutor: %s\nExecutor session_id: %s",
-			wd, exName, sessionID,
+			"Status:\nWorkdir: %s\nExecutor: %s\nMode: %s\nExecutor session_id: %s",
+			wd, exName, mode, sessionID,
 		))
+	}
+	if text == "/mode" {
+		mode, err := o.sessions.PermissionMode(ctx, msg.SessionKey)
+		if err != nil {
+			return err
+		}
+		return o.reply(ctx, msg.SessionKey, "mode: "+mode)
+	}
+	if strings.HasPrefix(text, "/mode ") {
+		mode := strings.TrimSpace(strings.TrimPrefix(text, "/mode "))
+		if mode != domain.PermissionModeSandbox && mode != domain.PermissionModeFullAccess {
+			return o.reply(ctx, msg.SessionKey, "usage: /mode <sandbox|full-access>")
+		}
+		if err := o.sessions.SetPermissionMode(ctx, msg.SessionKey, mode); err != nil {
+			return err
+		}
+		return o.reply(ctx, msg.SessionKey, "mode set to: "+mode)
 	}
 	if strings.HasPrefix(text, "/stop ") {
 		jobID := strings.TrimSpace(strings.TrimPrefix(text, "/stop "))
@@ -258,6 +279,11 @@ func (o *Orchestrator) enqueueJob(ctx context.Context, key domain.SessionKey, ex
 		Status:     domain.JobPending,
 		CreatedAt:  time.Now().UTC(),
 	}
+	mode, err := o.sessions.PermissionMode(ctx, key)
+	if err != nil {
+		return err
+	}
+	job.PermissionMode = mode
 	ex, ok := o.executors[exName]
 	if !ok {
 		return o.reply(ctx, key, "unknown executor: "+exName)

@@ -3,8 +3,10 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -182,6 +184,63 @@ func (s *SQLiteStore) UpsertExecutorSession(ctx context.Context, executor string
 		executor, string(key.Platform), key.ChatID, key.ThreadID, workdir, sessionID, time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("upsert executor session: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) SessionPermissionMode(ctx context.Context, key domain.SessionKey) (string, error) {
+	var contextJSON string
+	err := s.db.QueryRowContext(ctx, `SELECT context_json FROM sessions WHERE session_key = ?`, key.String()).Scan(&contextJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.PermissionModeSandbox, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("get session permission mode: %w", err)
+	}
+	if strings.TrimSpace(contextJSON) == "" {
+		return domain.PermissionModeSandbox, nil
+	}
+	var payload struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.Unmarshal([]byte(contextJSON), &payload); err != nil {
+		return "", fmt.Errorf("decode session context_json: %w", err)
+	}
+	return domain.NormalizePermissionMode(payload.Mode), nil
+}
+
+func (s *SQLiteStore) SetSessionPermissionMode(ctx context.Context, key domain.SessionKey, mode string, expiresAt time.Time) error {
+	mode = domain.NormalizePermissionMode(mode)
+
+	var workdir string
+	var contextJSON string
+	err := s.db.QueryRowContext(ctx, `SELECT workdir, context_json FROM sessions WHERE session_key = ?`, key.String()).Scan(&workdir, &contextJSON)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("load session for permission mode update: %w", err)
+	}
+
+	payload := map[string]any{}
+	if strings.TrimSpace(contextJSON) != "" {
+		if err := json.Unmarshal([]byte(contextJSON), &payload); err != nil {
+			return fmt.Errorf("decode session context_json: %w", err)
+		}
+	}
+	payload["mode"] = mode
+	contextBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encode session context_json: %w", err)
+	}
+
+	_, err = s.db.ExecContext(ctx, `
+	INSERT INTO sessions(session_key, platform, chat_id, thread_id, workdir, context_json, updated_at, expires_at)
+	VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(session_key) DO UPDATE SET
+	context_json=excluded.context_json,
+	updated_at=excluded.updated_at,
+	expires_at=excluded.expires_at`,
+		key.String(), string(key.Platform), key.ChatID, key.ThreadID, workdir, string(contextBytes), time.Now().UTC(), expiresAt.UTC())
+	if err != nil {
+		return fmt.Errorf("set session permission mode: %w", err)
 	}
 	return nil
 }

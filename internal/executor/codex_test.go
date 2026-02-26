@@ -18,11 +18,14 @@ func TestCodexBuildCommandWithoutSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildCommand error: %v", err)
 	}
-	if len(args) < 6 {
+	if len(args) < 8 {
 		t.Fatalf("unexpected args: %#v", args)
 	}
-	if args[2] != "exec" {
+	if args[4] != "exec" {
 		t.Fatalf("expected exec mode, got: %#v", args)
+	}
+	if args[2] != "--sandbox" || args[3] != "workspace-write" {
+		t.Fatalf("expected sandbox workspace-write, got: %#v", args)
 	}
 	foundJSON := false
 	for _, arg := range args {
@@ -33,6 +36,20 @@ func TestCodexBuildCommandWithoutSession(t *testing.T) {
 	}
 	if !foundJSON {
 		t.Fatalf("expected --json in args: %#v", args)
+	}
+}
+
+func TestCodexBuildCommandFullAccessMode(t *testing.T) {
+	ex := CodexExecutor{Binary: "codex"}
+	args, err := ex.BuildCommand(context.Background(), domain.Job{
+		Prompt:         "hello",
+		PermissionMode: domain.PermissionModeFullAccess,
+	})
+	if err != nil {
+		t.Fatalf("BuildCommand error: %v", err)
+	}
+	if len(args) < 4 || args[2] != "--sandbox" || args[3] != "danger-full-access" {
+		t.Fatalf("expected danger-full-access sandbox, got: %#v", args)
 	}
 }
 
@@ -73,6 +90,9 @@ func TestCodexHandleEventItemCompletedCommandExecution(t *testing.T) {
 	want := "<b>command_execution</b>\n<pre>line1\nline2</pre>\n"
 	if ev.Chunk != want {
 		t.Fatalf("unexpected text: %q", ev.Chunk)
+	}
+	if ev.Format != "html" {
+		t.Fatalf("expected format=html, got %q", ev.Format)
 	}
 }
 

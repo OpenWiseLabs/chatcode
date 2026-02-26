@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"chatcode/internal/domain"
@@ -75,6 +74,7 @@ func (b *Bot) setMyCommands(ctx context.Context) error {
 		{Command: "list", Description: "List projects under project root"},
 		{Command: "codex", Description: "Use codex or run once: /codex <prompt>"},
 		{Command: "claude", Description: "Use claude or run once: /claude <prompt>"},
+		{Command: "mode", Description: "Set session permission mode: /mode <sandbox|full-access>"},
 		{Command: "status", Description: "Show current session status"},
 		{Command: "reset", Description: "Reset current session"},
 		{Command: "stop", Description: "Stop running job: /stop <job_id>"},
@@ -102,7 +102,7 @@ func (b *Bot) setMyCommands(ctx context.Context) error {
 
 func (b *Bot) Send(ctx context.Context, msg domain.OutboundMessage) error {
 	payload := buildSendPayload(msg)
-	if msg.Format == "html" || isCommandExecutionHTML(msg.Text) {
+	if msg.Format == "html" {
 		payload["parse_mode"] = "HTML"
 	}
 	body, _ := json.Marshal(payload)
@@ -181,13 +181,6 @@ func (t *telegramID) UnmarshalJSON(data []byte) error {
 
 func (t telegramID) String() string {
 	return string(t)
-}
-
-func isCommandExecutionHTML(text string) bool {
-	trim := strings.TrimSpace(text)
-	return strings.HasPrefix(trim, "<b>command_execution</b>") &&
-		strings.Contains(trim, "<code>") &&
-		strings.Contains(trim, "</code>")
 }
 
 func toDomainMessage(u update) domain.Message {

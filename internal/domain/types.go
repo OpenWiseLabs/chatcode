@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -56,23 +57,25 @@ const (
 )
 
 type Job struct {
-	ID           string
-	SessionKey   SessionKey
-	Executor     string
-	Session      string
-	Prompt       string
-	Workdir      string
-	Status       JobStatus
-	CreatedAt    time.Time
-	StartedAt    *time.Time
-	FinishedAt   *time.Time
-	ErrorMessage string
+	ID             string
+	SessionKey     SessionKey
+	Executor       string
+	PermissionMode string
+	Session        string
+	Prompt         string
+	Workdir        string
+	Status         JobStatus
+	CreatedAt      time.Time
+	StartedAt      *time.Time
+	FinishedAt     *time.Time
+	ErrorMessage   string
 }
 
 type StreamEvent struct {
 	JobID    string
 	Seq      int64
 	Chunk    string
+	Format   string
 	IsFinal  bool
 	TS       time.Time
 	Stream   string
@@ -86,3 +89,17 @@ type Transport interface {
 }
 
 type MessageHandler func(context.Context, Message) error
+
+const (
+	PermissionModeSandbox    = "sandbox"
+	PermissionModeFullAccess = "full-access"
+)
+
+func NormalizePermissionMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case PermissionModeFullAccess:
+		return PermissionModeFullAccess
+	default:
+		return PermissionModeSandbox
+	}
+}

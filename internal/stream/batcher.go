@@ -40,7 +40,7 @@ func (b *Batcher) OnEvent(ctx context.Context, ev domain.StreamEvent) error {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.sendLocked(ctx, ev.Chunk)
+	return b.sendLocked(ctx, ev.Chunk, ev.Format)
 }
 
 func (b *Batcher) Flush(ctx context.Context) error {
@@ -48,18 +48,18 @@ func (b *Batcher) Flush(ctx context.Context) error {
 	return nil
 }
 
-func (b *Batcher) sendLocked(ctx context.Context, msg string) error {
+func (b *Batcher) sendLocked(ctx context.Context, msg, format string) error {
 	if b.maxChunk <= 0 || len(msg) <= b.maxChunk {
-		return b.sender.Send(ctx, domain.OutboundMessage{SessionKey: b.key, Text: msg})
+		return b.sender.Send(ctx, domain.OutboundMessage{SessionKey: b.key, Text: msg, Format: format})
 	}
 	for len(msg) > b.maxChunk {
-		if err := b.sender.Send(ctx, domain.OutboundMessage{SessionKey: b.key, Text: msg[:b.maxChunk]}); err != nil {
+		if err := b.sender.Send(ctx, domain.OutboundMessage{SessionKey: b.key, Text: msg[:b.maxChunk], Format: format}); err != nil {
 			return err
 		}
 		msg = msg[b.maxChunk:]
 	}
 	if msg != "" {
-		return b.sender.Send(ctx, domain.OutboundMessage{SessionKey: b.key, Text: msg})
+		return b.sender.Send(ctx, domain.OutboundMessage{SessionKey: b.key, Text: msg, Format: format})
 	}
 	return nil
 }

@@ -43,6 +43,7 @@ chatcode status
 - `/list`
 - `/codex` or `/claude`
 - `/codex <prompt...>` or `/claude <prompt...>`
+- `/mode <sandbox|full-access>` or `/mode`
 - `/status`
 - `/reset`
 - `/stop <job_id>`

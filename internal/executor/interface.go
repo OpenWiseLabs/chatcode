@@ -27,3 +27,11 @@ type SessionAware interface {
 type Sink interface {
 	OnEvent(context.Context, domain.StreamEvent) error
 }
+
+// ExitCodeAware is optional. Executors that use stream-json output may exit
+// with non-zero codes even when the task completed successfully (e.g. a tool
+// call failed but a valid result event was still emitted). Implementing this
+// interface lets an executor declare which exit codes are non-fatal.
+type ExitCodeAware interface {
+	IsSuccessExitCode(code int) bool
+}

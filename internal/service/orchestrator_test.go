@@ -493,3 +493,92 @@ func TestOrchestratorDefaultExecutorIsCodex(t *testing.T) {
 		t.Fatalf("expected job queued response, got %#v", tg.msgs)
 	}
 }
+
+func TestOrchestratorModeSetAndStatus(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.NewSQLiteStore(db)
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	defer st.Close()
+
+	root := t.TempDir()
+	sm := session.NewManager(st, time.Hour)
+	pol := security.New([]string{"codex"}, []string{root})
+	tg := &fakeTransport{}
+	o := NewOrchestrator(
+		ctx,
+		st,
+		sm,
+		pol,
+		executor.Runner{Timeout: time.Second},
+		map[string]executor.Executor{"codex": fakeExec{}},
+		map[domain.Platform]domain.Transport{domain.PlatformTelegram: tg},
+		2,
+		8,
+		300*time.Millisecond,
+		3500,
+	)
+	key := domain.SessionKey{Platform: domain.PlatformTelegram, ChatID: "1"}
+	if err := o.HandleIncomingMessage(ctx, domain.Message{SessionKey: key, Text: "/mode full-access"}); err != nil {
+		t.Fatalf("mode set: %v", err)
+	}
+	if err := o.HandleIncomingMessage(ctx, domain.Message{SessionKey: key, Text: "/status"}); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+
+	tg.mu.Lock()
+	defer tg.mu.Unlock()
+	if len(tg.msgs) < 2 {
+		t.Fatalf("expected mode and status responses")
+	}
+	if tg.msgs[0] != "mode set to: full-access" {
+		t.Fatalf("unexpected mode response: %q", tg.msgs[0])
+	}
+	last := tg.msgs[len(tg.msgs)-1]
+	if !strings.Contains(last, "Mode: full-access") {
+		t.Fatalf("status should include mode, got: %q", last)
+	}
+}
+
+func TestOrchestratorModeRejectsInvalidValue(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.NewSQLiteStore(db)
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	defer st.Close()
+
+	root := t.TempDir()
+	sm := session.NewManager(st, time.Hour)
+	pol := security.New([]string{"codex"}, []string{root})
+	tg := &fakeTransport{}
+	o := NewOrchestrator(
+		ctx,
+		st,
+		sm,
+		pol,
+		executor.Runner{Timeout: time.Second},
+		map[string]executor.Executor{"codex": fakeExec{}},
+		map[domain.Platform]domain.Transport{domain.PlatformTelegram: tg},
+		2,
+		8,
+		300*time.Millisecond,
+		3500,
+	)
+	key := domain.SessionKey{Platform: domain.PlatformTelegram, ChatID: "1"}
+	if err := o.HandleIncomingMessage(ctx, domain.Message{SessionKey: key, Text: "/mode unsafe"}); err != nil {
+		t.Fatalf("mode invalid: %v", err)
+	}
+	tg.mu.Lock()
+	defer tg.mu.Unlock()
+	if len(tg.msgs) == 0 || tg.msgs[len(tg.msgs)-1] != "usage: /mode <sandbox|full-access>" {
+		t.Fatalf("unexpected mode usage response: %#v", tg.msgs)
+	}
+}

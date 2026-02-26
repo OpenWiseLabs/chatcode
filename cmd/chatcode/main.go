@@ -196,6 +196,8 @@ func runServiceInstallCommand(c *cli.Context) error {
 		return err
 	}
 	workingDir := filepath.Dir(cfgPath)
+	stdoutPath := filepath.Join(workingDir, "chatcode.log")
+	stderrPath := filepath.Join(workingDir, "chatcode.error.log")
 	servicePathEnv := defaultServicePATH()
 
 	exe, err := os.Executable()
@@ -263,11 +265,15 @@ WantedBy=default.target
     <key>PATH</key>
     <string>%s</string>
   </dict>
+  <key>StandardOutPath</key>
+  <string>%s</string>
+  <key>StandardErrorPath</key>
+  <string>%s</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
 </dict>
 </plist>
-`, macOSServiceLabel, exe, workingDir, servicePathEnv)
+`, macOSServiceLabel, exe, workingDir, servicePathEnv, stdoutPath, stderrPath)
 		if err := os.WriteFile(plistPath, []byte(plist), 0o644); err != nil {
 			return err
 		}
