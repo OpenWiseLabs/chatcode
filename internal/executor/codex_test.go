@@ -24,7 +24,7 @@ func TestCodexBuildCommandWithoutSession(t *testing.T) {
 	if args[4] != "exec" {
 		t.Fatalf("expected exec mode, got: %#v", args)
 	}
-	if args[2] != "--sandbox" || args[3] != "workspace-write" {
+	if args[1] != "--sandbox" || args[2] != "workspace-write" {
 		t.Fatalf("expected sandbox workspace-write, got: %#v", args)
 	}
 	foundJSON := false
@@ -48,8 +48,28 @@ func TestCodexBuildCommandFullAccessMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildCommand error: %v", err)
 	}
-	if len(args) < 4 || args[2] != "--sandbox" || args[3] != "danger-full-access" {
-		t.Fatalf("expected danger-full-access sandbox, got: %#v", args)
+	foundBypass := false
+	foundFullAuto := false
+	foundSandbox := false
+	for _, arg := range args {
+		if arg == "--dangerously-bypass-approvals-and-sandbox" {
+			foundBypass = true
+		}
+		if arg == "--full-auto" {
+			foundFullAuto = true
+		}
+		if arg == "--sandbox" {
+			foundSandbox = true
+		}
+	}
+	if !foundBypass {
+		t.Fatalf("expected --dangerously-bypass-approvals-and-sandbox, got: %#v", args)
+	}
+	if foundFullAuto {
+		t.Fatalf("did not expect --full-auto in full-access mode, got: %#v", args)
+	}
+	if foundSandbox {
+		t.Fatalf("did not expect --sandbox in full-access mode, got: %#v", args)
 	}
 }
 

@@ -28,34 +28,34 @@ func (e CodexExecutor) BuildCommand(_ context.Context, job domain.Job) ([]string
 	if e.Binary == "" {
 		return nil, fmt.Errorf("codex binary is empty")
 	}
-	sandboxMode := "workspace-write"
-	if domain.NormalizePermissionMode(job.PermissionMode) == domain.PermissionModeFullAccess {
-		sandboxMode = "danger-full-access"
+	isFullAccess := domain.NormalizePermissionMode(job.PermissionMode) == domain.PermissionModeFullAccess
+	baseArgs := []string{
+		e.Binary,
+	}
+	if isFullAccess {
+		baseArgs = append(baseArgs, "--dangerously-bypass-approvals-and-sandbox")
+	} else {
+		baseArgs = append(baseArgs, "--sandbox", "workspace-write")
+		baseArgs = append(baseArgs, "--full-auto")
 	}
 	if job.Session != "" {
-		return []string{
-			e.Binary,
-			"--full-auto",
-			"--sandbox",
-			sandboxMode,
+		args := append(baseArgs,
 			"exec",
 			"--json",
 			"--skip-git-repo-check",
 			"resume",
 			job.Session,
 			job.Prompt,
-		}, nil
+		)
+		return args, nil
 	}
-	return []string{
-		e.Binary,
-		"--full-auto",
-		"--sandbox",
-		sandboxMode,
+	args := append(baseArgs,
 		"exec",
 		"--json",
 		"--skip-git-repo-check",
 		job.Prompt,
-	}, nil
+	)
+	return args, nil
 }
 
 func (e CodexExecutor) LoadSession(ctx context.Context, job domain.Job) (string, error) {
