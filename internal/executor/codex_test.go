@@ -89,7 +89,7 @@ func TestCodexHandleEventTurnFailed(t *testing.T) {
 	ex := CodexExecutor{}
 	ev := &domain.StreamEvent{Chunk: `{"type":"turn.failed","error":{"message":"stream disconnected"}}`}
 	_ = ex.HandleEvent(ev)
-	if ev.Chunk != "stream disconnected\n" {
+	if ev.Chunk != "Turn failed: stream disconnected\n" {
 		t.Fatalf("unexpected text: %q", ev.Chunk)
 	}
 }
@@ -105,9 +105,9 @@ func TestCodexHandleEventItemCompletedAgentMessage(t *testing.T) {
 
 func TestCodexHandleEventItemCompletedCommandExecution(t *testing.T) {
 	ex := CodexExecutor{}
-	ev := &domain.StreamEvent{Chunk: `{"type":"item.completed","item":{"id":"item_1","type":"command_execution","aggregated_output":"line1\nline2\n"}}`}
+	ev := &domain.StreamEvent{Chunk: `{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"ls -la","aggregated_output":"line1\nline2\n"}}`}
 	_ = ex.HandleEvent(ev)
-	want := "<b>Command</b>\n<pre>line1\nline2</pre>\n"
+	want := "<b>Command</b> <code>ls -la</code>\n"
 	if ev.Chunk != want {
 		t.Fatalf("unexpected text: %q", ev.Chunk)
 	}

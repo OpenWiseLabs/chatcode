@@ -17,8 +17,7 @@ type CodexExecutor struct {
 }
 
 const (
-	commandTruncateLimit      = 800
-	commandOutputTruncateLimit = 600
+	commandTruncateLimit = 800
 )
 
 var codexThreadIDRegex = regexp.MustCompile(`(?i)thread[_ ]id:\s*([0-9a-f-]{36})`)
@@ -126,12 +125,12 @@ func extractCodexSessionID(ev codexJSONEvent) string {
 func extractCodexEventText(ev codexJSONEvent) (string, string) {
 	switch ev.Type {
 	case "error":
-		return ev.Message, ""
+		return formatReadableCodexFailure("Error", ev.Message), ""
 	case "turn.failed":
 		if ev.Error != nil && ev.Error.Message != "" {
-			return ev.Error.Message, ""
+			return formatReadableCodexFailure("Turn failed", ev.Error.Message), ""
 		}
-		return ev.Message, ""
+		return formatReadableCodexFailure("Turn failed", ev.Message), ""
 	case "item.completed":
 		if ev.Item == nil {
 			return "", ""
@@ -140,7 +139,7 @@ func extractCodexEventText(ev codexJSONEvent) (string, string) {
 		case "agent_message", "reasoning":
 			return ev.Item.Text, ""
 		case "command_execution":
-			return formatCommandExecutionHTML(ev.Item.Command, ev.Item.AggregatedOutput), "html"
+			return formatCommandExecutionHTML(ev.Item.Command), "html"
 		}
 	}
 	if ev.Message != "" {
@@ -175,9 +174,8 @@ type codexJSONItem struct {
 	AggregatedOutput string `json:"aggregated_output"`
 }
 
-func formatCommandExecutionHTML(cmd, out string) string {
+func formatCommandExecutionHTML(cmd string) string {
 	cmd = strings.TrimSpace(cmd)
-	out = truncateCommandOutput(strings.TrimSpace(out))
 	cmd = truncateCommandForDisplay(cmd)
 	var b strings.Builder
 	b.WriteString("<b>Command</b>")
@@ -186,21 +184,16 @@ func formatCommandExecutionHTML(cmd, out string) string {
 		b.WriteString(html.EscapeString(cmd))
 		b.WriteString("</code>")
 	}
-	if out != "" {
-		b.WriteString("\n<pre>")
-		b.WriteString(html.EscapeString(out))
-		b.WriteString("</pre>\n")
-	} else {
-		b.WriteString("\n")
-	}
+	b.WriteString("\n")
 	return b.String()
 }
 
-func truncateCommandOutput(out string) string {
-	if len(out) <= commandOutputTruncateLimit {
-		return out
+func formatReadableCodexFailure(prefix, msg string) string {
+	text := strings.TrimSpace(msg)
+	if text == "" {
+		return ""
 	}
-	return out[:commandOutputTruncateLimit] + "\n[output truncated]"
+	return prefix + ": " + text
 }
 
 func truncateCommandForDisplay(cmd string) string {
