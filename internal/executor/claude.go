@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"sort"
 	"strings"
 
 	"chatcode/internal/domain"
@@ -137,19 +138,74 @@ func extractClaudeMessageText(msg *claudeJSONMessage) (text, format string) {
 	return result, ""
 }
 
+const toolDisplayLimit = 80
+
+func truncateDetail(s string) string {
+	if len(s) > toolDisplayLimit {
+		return s[:toolDisplayLimit] + "…"
+	}
+	return s
+}
+
+func extractJSONStr(fields map[string]json.RawMessage, key string) string {
+	v, ok := fields[key]
+	if !ok {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(v, &s); err != nil {
+		return strings.Trim(string(v), `"`)
+	}
+	return s
+}
+
 func formatClaudeToolUse(name string, input json.RawMessage) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
-	inputStr := strings.TrimSpace(string(input))
+
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(input, &fields)
+
+	var detail, extra string
+	switch name {
+	case "Read", "Write", "Edit":
+		detail = extractJSONStr(fields, "file_path")
+	case "Bash":
+		detail = truncateDetail(extractJSONStr(fields, "command"))
+	case "Glob":
+		detail = extractJSONStr(fields, "pattern")
+	case "Grep":
+		detail = extractJSONStr(fields, "pattern")
+		if p := extractJSONStr(fields, "path"); p != "" {
+			extra = p
+		}
+	case "Agent":
+		detail = extractJSONStr(fields, "description")
+	default:
+		keys := make([]string, 0, len(fields))
+		for k := range fields {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		if len(keys) > 0 {
+			detail = truncateDetail(extractJSONStr(fields, keys[0]))
+		}
+	}
+
 	var b strings.Builder
 	b.WriteString("<b>")
 	b.WriteString(html.EscapeString(name))
 	b.WriteString("</b>")
-	if inputStr != "" && inputStr != "null" && inputStr != "{}" {
-		b.WriteString("\n<code>")
-		b.WriteString(html.EscapeString(truncateCommandForDisplay(inputStr)))
+	if detail != "" {
+		b.WriteString(" <code>")
+		b.WriteString(html.EscapeString(detail))
+		b.WriteString("</code>")
+	}
+	if extra != "" {
+		b.WriteString(" in <code>")
+		b.WriteString(html.EscapeString(extra))
 		b.WriteString("</code>")
 	}
 	b.WriteString("\n")

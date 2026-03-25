@@ -17,7 +17,8 @@ type CodexExecutor struct {
 }
 
 const (
-	commandTruncateLimit = 800
+	commandTruncateLimit      = 800
+	commandOutputTruncateLimit = 600
 )
 
 var codexThreadIDRegex = regexp.MustCompile(`(?i)thread[_ ]id:\s*([0-9a-f-]{36})`)
@@ -85,8 +86,7 @@ func (e CodexExecutor) HandleEvent(ev *domain.StreamEvent) string {
 		ev.Chunk = text
 		ev.Format = format
 	} else {
-		ev.Chunk = ""
-		return ""
+		return extractSessionIDByRegex(ev.Chunk, codexThreadIDRegex, 1)
 	}
 	if sessionID != "" {
 		return sessionID
@@ -177,15 +177,12 @@ type codexJSONItem struct {
 
 func formatCommandExecutionHTML(cmd, out string) string {
 	cmd = strings.TrimSpace(cmd)
-	out = strings.TrimSpace(out)
+	out = truncateCommandOutput(strings.TrimSpace(out))
 	cmd = truncateCommandForDisplay(cmd)
-	if cmd == "" && out == "" {
-		return ""
-	}
 	var b strings.Builder
-	b.WriteString("<b>command_execution</b>")
+	b.WriteString("<b>Command</b>")
 	if cmd != "" {
-		b.WriteString("\n<code>")
+		b.WriteString(" <code>")
 		b.WriteString(html.EscapeString(cmd))
 		b.WriteString("</code>")
 	}
@@ -193,8 +190,17 @@ func formatCommandExecutionHTML(cmd, out string) string {
 		b.WriteString("\n<pre>")
 		b.WriteString(html.EscapeString(out))
 		b.WriteString("</pre>\n")
+	} else {
+		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+func truncateCommandOutput(out string) string {
+	if len(out) <= commandOutputTruncateLimit {
+		return out
+	}
+	return out[:commandOutputTruncateLimit] + "\n[output truncated]"
 }
 
 func truncateCommandForDisplay(cmd string) string {
