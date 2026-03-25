@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,14 @@ import (
 
 	"chatcode/internal/domain"
 )
+
+func isTimeoutErr(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr interface{ Timeout() bool }
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
 
 type Bot struct {
 	token         string
@@ -46,6 +55,10 @@ func (b *Bot) Start(ctx context.Context, handler domain.MessageHandler) error {
 		}
 		updates, err := b.getUpdates(ctx)
 		if err != nil {
+			if isTimeoutErr(err) {
+				time.Sleep(2 * time.Second)
+				continue // normal long-poll timeout, no log needed
+			}
 			slog.Error("telegram getUpdates failed", "error", err)
 			time.Sleep(2 * time.Second)
 			continue
@@ -62,7 +75,9 @@ func (b *Bot) Start(ctx context.Context, handler domain.MessageHandler) error {
 				"thread_id", msg.SessionKey.ThreadID,
 				"sender_id", msg.SenderID,
 			)
-			_ = handler(ctx, msg)
+			if err := handler(ctx, msg); err != nil {
+				slog.Warn("telegram handler error", "err", err)
+			}
 		}
 	}
 }
