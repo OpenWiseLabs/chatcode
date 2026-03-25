@@ -107,7 +107,7 @@ func TestCodexHandleEventItemCompletedCommandExecution(t *testing.T) {
 	ex := CodexExecutor{}
 	ev := &domain.StreamEvent{Chunk: `{"type":"item.completed","item":{"id":"item_1","type":"command_execution","aggregated_output":"line1\nline2\n"}}`}
 	_ = ex.HandleEvent(ev)
-	want := "<b>command_execution</b>\n<pre>line1\nline2</pre>\n"
+	want := "<b>Command</b>\n<pre>line1\nline2</pre>\n"
 	if ev.Chunk != want {
 		t.Fatalf("unexpected text: %q", ev.Chunk)
 	}
