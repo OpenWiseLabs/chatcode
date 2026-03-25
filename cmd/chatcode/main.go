@@ -23,6 +23,7 @@ import (
 	"chatcode/internal/service"
 	"chatcode/internal/session"
 	"chatcode/internal/store"
+	"chatcode/internal/transport/discord"
 	"chatcode/internal/transport/telegram"
 	"chatcode/internal/transport/whatsapp"
 
@@ -104,6 +105,9 @@ func runSetupCommand(c *cli.Context) error {
 	whatsappEnabled := promptString(reader, "whatsapp.enabled", "false")
 	whatsappListen := promptString(reader, "whatsapp.bridge_listen_addr", ":8090")
 	whatsappSender := promptString(reader, "whatsapp.allowed_sender_id", "your-whatsapp-id")
+	discordEnabled := promptString(reader, "discord.enabled", "false")
+	discordToken := promptString(reader, "discord.bot_token", "")
+	discordChannel := promptString(reader, "discord.allowed_channel_ids (comma-separated, empty=all)", "")
 
 	allowlist := "codex,claude"
 	if strings.EqualFold(defaultExec, "claude") {
@@ -123,6 +127,11 @@ whatsapp:
   enabled: %s
   bridge_listen_addr: "%s"
   allowed_sender_id: "%s"
+
+discord:
+  enabled: %s
+  bot_token: "%s"
+  allowed_channel_ids: "%s"
 
 executor:
   codex_binary: "%s"
@@ -144,7 +153,7 @@ security:
 storage:
   sqlite_path: "%s"
   session_retention: "168h"
-`, telegramEnabled, escapeYAML(telegramToken), escapeYAML(telegramUser), whatsappEnabled, escapeYAML(whatsappListen), escapeYAML(whatsappSender), escapeYAML(codexBinary), escapeYAML(claudeBinary), allowlist, escapeYAML(projectRoot), escapeYAML(defaultDataPath))
+`, telegramEnabled, escapeYAML(telegramToken), escapeYAML(telegramUser), whatsappEnabled, escapeYAML(whatsappListen), escapeYAML(whatsappSender), discordEnabled, escapeYAML(discordToken), escapeYAML(discordChannel), escapeYAML(codexBinary), escapeYAML(claudeBinary), allowlist, escapeYAML(projectRoot), escapeYAML(defaultDataPath))
 
 	if err := os.WriteFile(cfgPath, []byte(content), 0o640); err != nil {
 		return fmt.Errorf("write config: %w", err)
@@ -413,6 +422,10 @@ func runDaemon(cfgPath string) error {
 	if cfg.WhatsApp.Enabled {
 		transports[domain.PlatformWhatsApp] = whatsapp.NewWebBridge(cfg.WhatsApp.BridgeListenAddr, cfg.WhatsApp.AllowedSenderID)
 		logger.Info("transport registered", "transport", "whatsapp", "listen_addr", cfg.WhatsApp.BridgeListenAddr)
+	}
+	if cfg.Discord.Enabled {
+		transports[domain.PlatformDiscord] = discord.New(cfg.Discord.BotToken, cfg.Discord.AllowedChannelIDs)
+		logger.Info("transport registered", "transport", "discord")
 	}
 
 	orch := service.NewOrchestrator(

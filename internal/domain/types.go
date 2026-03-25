@@ -11,6 +11,7 @@ type Platform string
 const (
 	PlatformTelegram Platform = "telegram"
 	PlatformWhatsApp Platform = "whatsapp"
+	PlatformDiscord  Platform = "discord"
 )
 
 type SessionKey struct {

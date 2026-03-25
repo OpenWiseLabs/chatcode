@@ -14,6 +14,7 @@ type Config struct {
 	Server   ServerConfig
 	Telegram TelegramConfig
 	WhatsApp WhatsAppConfig
+	Discord  DiscordConfig
 	Executor ExecutorConfig
 	Queue    QueueConfig
 	Stream   StreamConfig
@@ -36,6 +37,12 @@ type WhatsAppConfig struct {
 	BridgeListenAddr string
 	AllowedSenderID  string
 	Enabled          bool
+}
+
+type DiscordConfig struct {
+	BotToken          string
+	AllowedChannelIDs []string
+	Enabled           bool
 }
 
 type ExecutorConfig struct {
@@ -99,6 +106,9 @@ func Load(path string) (Config, error) {
 func (c Config) Validate() error {
 	if c.Telegram.Enabled && c.Telegram.BotToken == "" {
 		return errors.New("telegram.bot_token is required when telegram.enabled=true")
+	}
+	if c.Discord.Enabled && c.Discord.BotToken == "" {
+		return errors.New("discord.bot_token is required when discord.enabled=true")
 	}
 	if c.Storage.SQLitePath == "" {
 		return errors.New("storage.sqlite_path is required")
@@ -173,6 +183,16 @@ func applyKV(cfg *Config, section, key, val string) error {
 		cfg.WhatsApp.BridgeListenAddr = val
 	case "whatsapp.allowed_sender_id":
 		cfg.WhatsApp.AllowedSenderID = val
+	case "discord.enabled":
+		cfg.Discord.Enabled = val == "true"
+	case "discord.bot_token":
+		cfg.Discord.BotToken = val
+	case "discord.allowed_channel_ids":
+		cfg.Discord.AllowedChannelIDs = append(cfg.Discord.AllowedChannelIDs, splitCSV(val)...)
+	case "discord.allowed_channel_id":
+		if val != "" {
+			cfg.Discord.AllowedChannelIDs = append(cfg.Discord.AllowedChannelIDs, val)
+		}
 	case "executor.codex_binary":
 		cfg.Executor.CodexBinary = val
 	case "executor.claude_binary":
@@ -243,5 +263,8 @@ func overrideEnv(cfg *Config) {
 	}
 	if v := os.Getenv("CHATBRIDGE_WHATSAPP_ALLOWED_SENDER"); v != "" {
 		cfg.WhatsApp.AllowedSenderID = v
+	}
+	if v := os.Getenv("CHATCODE_DISCORD_TOKEN"); v != "" {
+		cfg.Discord.BotToken = v
 	}
 }
